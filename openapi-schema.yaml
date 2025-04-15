@@ -256,6 +256,167 @@ paths:
                     type: boolean
                   auth_url:
                     type: string
+  /api/sleep/history:
+    get:
+      summary: Get historical WHOOP sleep data for a specified time period
+      operationId: getSleepHistory
+      parameters:
+        - name: token_id
+          in: query
+          description: Authentication token ID
+          required: false
+          schema:
+            type: string
+        - name: days
+          in: query
+          description: Number of days to get history for (1 to 180, default 30)
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 180
+            default: 30
+      responses:
+        "200":
+          description: Historical sleep data with summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  summary:
+                    type: object
+                    description: Summary statistics for the sleep data
+                    properties:
+                      total_records:
+                        type: integer
+                      days_requested:
+                        type: integer
+                      avg_score:
+                        type: integer
+                        nullable: true
+                      avg_duration_minutes:
+                        type: integer
+                        nullable: true
+                      avg_efficiency:
+                        type: number
+                        nullable: true
+                      avg_deep_minutes:
+                        type: integer
+                        nullable: true
+                      avg_rem_minutes:
+                        type: integer
+                        nullable: true
+                      avg_light_minutes:
+                        type: integer
+                        nullable: true
+                      avg_awake_minutes:
+                        type: integer
+                        nullable: true
+                  records:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SleepRecord'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+  /api/workout/history:
+    get:
+      summary: Get historical WHOOP workout data for a specified time period
+      operationId: getWorkoutHistory
+      parameters:
+        - name: token_id
+          in: query
+          description: Authentication token ID
+          required: false
+          schema:
+            type: string
+        - name: days
+          in: query
+          description: Number of days to get history for (1 to 180, default 30)
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 180
+            default: 30
+      responses:
+        "200":
+          description: Historical workout data with summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  summary:
+                    type: object
+                    description: Summary statistics for the workout data
+                    properties:
+                      total_records:
+                        type: integer
+                      days_requested:
+                        type: integer
+                      avg_strain:
+                        type: number
+                        nullable: true
+                      avg_duration_minutes:
+                        type: integer
+                        nullable: true
+                      total_distance_km:
+                        type: number
+                      total_kilojoules:
+                        type: integer
+                      workouts_by_sport:
+                        type: object
+                        additionalProperties:
+                          type: object
+                          properties:
+                            count:
+                              type: integer
+                            avg_strain:
+                              type: number
+                              nullable: true
+                            avg_duration:
+                              type: integer
+                              nullable: true
+                  records:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WorkoutRecord'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+  /api/body_measurement:
+    get:
+      summary: Get user's body measurements
+      operationId: getBodyMeasurement
+      parameters:
+        - name: token_id
+          in: query
+          description: Authentication token ID
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Body measurement data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  height_meter:
+                    type: number
+                    nullable: true
+                    description: Height in meters
+                  weight_kilogram:
+                    type: number
+                    nullable: true
+                    description: Weight in kilograms
+                  max_heart_rate:
+                    type: integer
+                    nullable: true
+                    description: Maximum heart rate
+        "401":
+          $ref: '#/components/responses/Unauthorized'
   /auth:
     get:
       summary: Initiate WHOOP OAuth flow
@@ -280,4 +441,82 @@ paths:
           content:
             text/plain:
               schema:
+                type: string
+
+components:
+  schemas:
+    SleepRecord:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date-time
+        score:
+          type: integer
+          nullable: true
+        total_duration_minutes:
+          type: integer
+          nullable: true
+        efficiency:
+          type: number
+          nullable: true
+        disturbances:
+          type: integer
+          nullable: true
+        deep_sleep_minutes:
+          type: integer
+          nullable: true
+        rem_sleep_minutes:
+          type: integer
+          nullable: true
+        light_sleep_minutes:
+          type: integer
+          nullable: true
+        awake_minutes:
+          type: integer
+          nullable: true
+        respiratory_rate:
+          type: number
+          nullable: true
+
+    WorkoutRecord:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date-time
+        sport_id:
+          type: integer
+        strain:
+          type: number
+          nullable: true
+        average_heart_rate:
+          type: integer
+          nullable: true
+        max_heart_rate:
+          type: integer
+          nullable: true
+        kilojoule:
+          type: number
+          nullable: true
+        distance_meter:
+          type: number
+          nullable: true
+        duration_minutes:
+          type: integer
+          nullable: true
+
+  responses:
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              auth_required:
+                type: boolean
+              auth_url:
                 type: string

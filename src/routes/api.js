@@ -438,6 +438,283 @@ router.get('/recovery/history', requireAuth, async (req, res) => {
   }
 });
 
-// Additional endpoints as needed...
+// Get historical sleep data (with customizable time period)
+router.get('/sleep/history', requireAuth, async (req, res) => {
+  try {
+    console.log('Making WHOOP API request for historical sleep data');
+    
+    // Get the requested number of days (default 30, max 180)
+    const days = Math.min(Math.max(parseInt(req.query.days) || 30, 1), 180);
+    console.log(`Fetching sleep history for the past ${days} days`);
+    
+    // Calculate start date
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+    
+    // Pagination variables
+    let allRecords = [];
+    let nextToken = null;
+    let page = 1;
+    let hasMorePages = true;
+    const maxPages = Math.min(Math.ceil(days / 25) + 1, 8);
+    
+    while (hasMorePages && page <= maxPages) {
+      console.log(`Fetching sleep history page ${page}...`);
+      
+      const params = {
+        limit: 25,
+        start: startDate.toISOString()
+      };
+      if (nextToken) {
+        params.nextToken = nextToken;
+      }
+      
+      const response = await axios.get('https://api.prod.whoop.com/developer/v1/activity/sleep', {
+        headers: { 'Authorization': `Bearer ${req.accessToken}` },
+        params
+      });
+      
+      console.log(`Sleep history page ${page} response status:`, response.status);
+      const records = response.data.records || [];
+      console.log(`Got ${records.length} sleep records from page ${page}`);
+      
+      // Process records
+      const processedRecords = records.map(record => {
+        const score = record.score || {};
+        const stageSummary = score.stage_summary || {};
+        const totalDurationSeconds = (new Date(record.end) - new Date(record.start)) / 1000;
+        
+        return {
+          date: record.start,
+          score: score.sleep_performance_percentage || null,
+          total_duration_minutes: Math.floor(totalDurationSeconds / 60),
+          efficiency: score.sleep_efficiency_percentage || null,
+          disturbances: score.disturbances_count || 0,
+          deep_sleep_minutes: stageSummary.deep_sleep_duration_seconds ? Math.floor(stageSummary.deep_sleep_duration_seconds / 60) : null,
+          rem_sleep_minutes: stageSummary.rem_sleep_duration_seconds ? Math.floor(stageSummary.rem_sleep_duration_seconds / 60) : null,
+          light_sleep_minutes: stageSummary.light_sleep_duration_seconds ? Math.floor(stageSummary.light_sleep_duration_seconds / 60) : null,
+          awake_minutes: stageSummary.awake_duration_seconds ? Math.floor(stageSummary.awake_duration_seconds / 60) : null,
+          respiratory_rate: score.respiratory_rate || null
+        };
+      });
+      
+      allRecords = [...allRecords, ...processedRecords];
+      nextToken = response.data.next_token;
+      hasMorePages = !!nextToken;
+      page++;
+    }
+    
+    // Calculate summary statistics
+    const summary = {
+      total_records: allRecords.length,
+      days_requested: days,
+      avg_score: 0,
+      avg_duration_minutes: 0,
+      avg_efficiency: 0,
+      avg_deep_minutes: 0,
+      avg_rem_minutes: 0,
+      avg_light_minutes: 0,
+      avg_awake_minutes: 0,
+    };
+    
+    let validScoreCount = 0;
+    let validDurationCount = 0;
+    let validEfficiencyCount = 0;
+    let validDeepCount = 0;
+    let validRemCount = 0;
+    let validLightCount = 0;
+    let validAwakeCount = 0;
+    
+    allRecords.forEach(record => {
+      if (record.score !== null) { summary.avg_score += record.score; validScoreCount++; }
+      if (record.total_duration_minutes !== null) { summary.avg_duration_minutes += record.total_duration_minutes; validDurationCount++; }
+      if (record.efficiency !== null) { summary.avg_efficiency += record.efficiency; validEfficiencyCount++; }
+      if (record.deep_sleep_minutes !== null) { summary.avg_deep_minutes += record.deep_sleep_minutes; validDeepCount++; }
+      if (record.rem_sleep_minutes !== null) { summary.avg_rem_minutes += record.rem_sleep_minutes; validRemCount++; }
+      if (record.light_sleep_minutes !== null) { summary.avg_light_minutes += record.light_sleep_minutes; validLightCount++; }
+      if (record.awake_minutes !== null) { summary.avg_awake_minutes += record.awake_minutes; validAwakeCount++; }
+    });
+
+    summary.avg_score = validScoreCount > 0 ? Math.round(summary.avg_score / validScoreCount) : null;
+    summary.avg_duration_minutes = validDurationCount > 0 ? Math.round(summary.avg_duration_minutes / validDurationCount) : null;
+    summary.avg_efficiency = validEfficiencyCount > 0 ? Math.round(summary.avg_efficiency / validEfficiencyCount * 100) / 100 : null;
+    summary.avg_deep_minutes = validDeepCount > 0 ? Math.round(summary.avg_deep_minutes / validDeepCount) : null;
+    summary.avg_rem_minutes = validRemCount > 0 ? Math.round(summary.avg_rem_minutes / validRemCount) : null;
+    summary.avg_light_minutes = validLightCount > 0 ? Math.round(summary.avg_light_minutes / validLightCount) : null;
+    summary.avg_awake_minutes = validAwakeCount > 0 ? Math.round(summary.avg_awake_minutes / validAwakeCount) : null;
+
+    res.json({ summary, records: allRecords });
+
+  } catch (error) {
+    console.error('Error fetching historical sleep data:', error.response?.data || error.message);
+    console.error('Error details:', {
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      message: error.message
+    });
+    if (error.response?.status === 401) {
+      return res.status(401).json({ error: 'Authentication error', auth_required: true, auth_url: '/auth' });
+    }
+    res.status(500).json({ error: 'Failed to fetch historical sleep data' });
+  }
+});
+
+// Get historical workout data (with customizable time period)
+router.get('/workout/history', requireAuth, async (req, res) => {
+  try {
+    console.log('Making WHOOP API request for historical workout data');
+    
+    // Get days (default 30, max 180)
+    const days = Math.min(Math.max(parseInt(req.query.days) || 30, 1), 180);
+    console.log(`Fetching workout history for the past ${days} days`);
+    
+    // Calculate start date
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+    
+    // Pagination variables
+    let allRecords = [];
+    let nextToken = null;
+    let page = 1;
+    let hasMorePages = true;
+    const maxPages = Math.min(Math.ceil(days / 25) + 1, 8); // Limit pagination
+    
+    while (hasMorePages && page <= maxPages) {
+      console.log(`Fetching workout history page ${page}...`);
+      
+      const params = {
+        limit: 25,
+        start: startDate.toISOString()
+      };
+      if (nextToken) {
+        params.nextToken = nextToken;
+      }
+      
+      const response = await axios.get('https://api.prod.whoop.com/developer/v1/activity/workout', {
+        headers: { 'Authorization': `Bearer ${req.accessToken}` },
+        params
+      });
+      
+      console.log(`Workout history page ${page} response status:`, response.status);
+      const records = response.data.records || [];
+      console.log(`Got ${records.length} workout records from page ${page}`);
+      
+      // Process records
+      const processedRecords = records.map(record => {
+        const score = record.score || {};
+        const durationSeconds = (new Date(record.end) - new Date(record.start)) / 1000;
+        
+        return {
+          date: record.start,
+          sport_id: record.sport_id,
+          strain: score.strain || null,
+          average_heart_rate: score.average_heart_rate || null,
+          max_heart_rate: score.max_heart_rate || null,
+          kilojoule: score.kilojoule || null,
+          distance_meter: score.distance_meter || null,
+          duration_minutes: Math.floor(durationSeconds / 60),
+        };
+      });
+      
+      allRecords = [...allRecords, ...processedRecords];
+      nextToken = response.data.next_token;
+      hasMorePages = !!nextToken;
+      page++;
+    }
+    
+    // Calculate summary statistics
+    const summary = {
+      total_records: allRecords.length,
+      days_requested: days,
+      avg_strain: 0,
+      avg_duration_minutes: 0,
+      total_distance_km: 0,
+      total_kilojoules: 0,
+      workouts_by_sport: {}
+    };
+    
+    let validStrainCount = 0;
+    let validDurationCount = 0;
+    
+    allRecords.forEach(record => {
+      if (record.strain !== null) { summary.avg_strain += record.strain; validStrainCount++; }
+      if (record.duration_minutes !== null) { summary.avg_duration_minutes += record.duration_minutes; validDurationCount++; }
+      if (record.distance_meter !== null) { summary.total_distance_km += record.distance_meter; }
+      if (record.kilojoule !== null) { summary.total_kilojoules += record.kilojoule; }
+      
+      // Group by sport_id
+      const sportId = record.sport_id || 'unknown';
+      if (!summary.workouts_by_sport[sportId]) {
+        summary.workouts_by_sport[sportId] = { count: 0, total_duration: 0, total_strain: 0 };
+      }
+      summary.workouts_by_sport[sportId].count++;
+      summary.workouts_by_sport[sportId].total_duration += record.duration_minutes || 0;
+      summary.workouts_by_sport[sportId].total_strain += record.strain || 0;
+    });
+
+    summary.avg_strain = validStrainCount > 0 ? Math.round((summary.avg_strain / validStrainCount) * 10) / 10 : null;
+    summary.avg_duration_minutes = validDurationCount > 0 ? Math.round(summary.avg_duration_minutes / validDurationCount) : null;
+    summary.total_distance_km = Math.round((summary.total_distance_km / 1000) * 10) / 10; // Convert to km
+    summary.total_kilojoules = Math.round(summary.total_kilojoules);
+    
+    // Calculate average strain/duration per sport
+    Object.keys(summary.workouts_by_sport).forEach(sportId => {
+        const sport = summary.workouts_by_sport[sportId];
+        sport.avg_strain = sport.count > 0 ? Math.round((sport.total_strain / sport.count) * 10) / 10 : null;
+        sport.avg_duration = sport.count > 0 ? Math.round(sport.total_duration / sport.count) : null;
+        delete sport.total_strain;
+        delete sport.total_duration;
+    });
+
+    res.json({ summary, records: allRecords });
+
+  } catch (error) {
+    console.error('Error fetching historical workout data:', error.response?.data || error.message);
+    console.error('Error details:', {
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      message: error.message
+    });
+    if (error.response?.status === 401) {
+      return res.status(401).json({ error: 'Authentication error', auth_required: true, auth_url: '/auth' });
+    }
+    res.status(500).json({ error: 'Failed to fetch historical workout data' });
+  }
+});
+
+// Add Body Measurement Endpoint
+router.get('/body_measurement', requireAuth, async (req, res) => {
+  try {
+    console.log('Making WHOOP API request for body measurement data');
+    const response = await axios.get('https://api.prod.whoop.com/developer/v1/user/measurement/body', {
+      headers: { 'Authorization': `Bearer ${req.accessToken}` }
+    });
+    
+    console.log('WHOOP API body measurement response status:', response.status);
+    console.log('WHOOP API body measurement response data:', JSON.stringify(response.data, null, 2));
+    
+    const data = response.data;
+    res.json({
+      height_meter: data.height_meter || null,
+      weight_kilogram: data.weight_kilogram || null,
+      max_heart_rate: data.max_heart_rate || null
+    });
+
+  } catch (error) {
+    console.error('Error fetching body measurement data:', error.response?.data || error.message);
+    console.error('Error details:', {
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      message: error.message
+    });
+    if (error.response?.status === 401) {
+      return res.status(401).json({ error: 'Authentication error', auth_required: true, auth_url: '/auth' });
+    }
+    res.status(500).json({ error: 'Failed to fetch body measurement data' });
+  }
+});
 
 module.exports = router;
