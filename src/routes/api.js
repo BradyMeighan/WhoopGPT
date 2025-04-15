@@ -1,18 +1,30 @@
 const express = require('express');
 const axios = require('axios');
-const { getWhoopToken } = require('./auth');
+const { getWhoopToken, getTokenById } = require('./auth');
 const router = express.Router();
+
+// The base URL for the application
+const BASE_URL = 'https://whoopgpt-production.up.railway.app';
 
 // Middleware to check if a user is authenticated
 const requireAuth = (req, res, next) => {
-  // Get token from the session
-  const tokenData = getWhoopToken(req);
+  let tokenData = null;
+  
+  // First, try to get token from query parameter
+  if (req.query.token_id) {
+    tokenData = getTokenById(req.query.token_id);
+  }
+  
+  // If not found, try session
+  if (!tokenData) {
+    tokenData = getWhoopToken(req);
+  }
   
   if (!tokenData || !tokenData.access_token) {
     return res.status(401).json({ 
       error: 'Not authenticated',
       auth_required: true,
-      auth_url: '/auth'
+      auth_url: `${BASE_URL}/auth`
     });
   }
   
