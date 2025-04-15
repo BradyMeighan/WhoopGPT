@@ -11,13 +11,16 @@ const configureSession = (app) => {
   // Session configuration
   app.use(session({
     secret: generateSecret(),
-    resave: false,
-    saveUninitialized: false,
+    resave: true, // Changed to true to ensure session is saved even if not modified
+    saveUninitialized: true, // Changed to true to ensure new sessions are saved
     cookie: {
-      httpOnly: true,               // Prevents client-side JS from reading the cookie
+      httpOnly: true,
       secure: process.env.NODE_ENV === 'production', // Requires HTTPS in production
-      maxAge: 30 * 24 * 60 * 60 * 1000  // 30 days in milliseconds
-    }
+      maxAge: 30 * 24 * 60 * 60 * 1000,  // 30 days in milliseconds
+      sameSite: 'lax' // Added to improve cookie handling across sites
+    },
+    // Adding explicit name to make sure the session ID is clearly identified
+    name: 'whoopgpt.session'
   }));
 };
 
