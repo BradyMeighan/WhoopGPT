@@ -24,6 +24,9 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cookieParser());
 
+// Serve static files from the public directory
+app.use(express.static(path.join(__dirname, 'public')));
+
 // Configure session
 app.use(session({
   secret: sessionSecret,
@@ -44,11 +47,14 @@ app.use((req, res, next) => {
   next();
 });
 
-// Add session debugging in development
+// Add session debugging in development, but without exposing sensitive data
 if (process.env.NODE_ENV !== 'production') {
   app.use((req, res, next) => {
     console.log('Session ID:', req.sessionID);
-    console.log('Session data:', req.session);
+    // Only log if the session has been initialized, but not the actual token data
+    if (req.session) {
+      console.log('Session exists:', Object.keys(req.session).filter(key => key !== 'whoopToken'));
+    }
     next();
   });
 }
@@ -56,6 +62,11 @@ if (process.env.NODE_ENV !== 'production') {
 // Routes
 app.use('/', authRoutes);
 app.use('/api', apiRoutes);
+
+// Direct route for privacy policy
+app.get('/privacy-policy', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'privacy-policy.html'));
+});
 
 // Simple home route
 app.get('/', (req, res) => {

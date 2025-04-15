@@ -6,41 +6,62 @@ const router = express.Router();
 // The base URL for the application
 const BASE_URL = 'https://whoopgpt-production.up.railway.app';
 
-// Middleware to check if a user is authenticated
-const requireAuth = (req, res, next) => {
-  let tokenData = null;
-  
-  // First, try to get token from query parameter
+// Middleware to get token from session or query parameter
+const getToken = async (req, res, next) => {
+  // Check if there's a token ID in the query parameters
   if (req.query.token_id) {
-    console.log('Looking up token by ID:', req.query.token_id);
-    tokenData = getTokenById(req.query.token_id);
-    console.log('Token data from ID:', tokenData);
+    // Security: Don't log token IDs
+    
+    const tokenData = getTokenById(req.query.token_id);
+    
+    if (tokenData) {
+      // Security: Don't log token details
+      req.accessToken = tokenData.token.access_token;
+      return next();
+    }
+    
+    // Security: Don't log session status
   }
   
-  // If not found, try session
-  if (!tokenData) {
-    console.log('No token found by ID, checking session');
-    tokenData = getWhoopToken(req);
-    console.log('Token data from session:', tokenData);
+  // Try to get token from session
+  const tokenData = getWhoopToken(req);
+  
+  if (tokenData) {
+    req.accessToken = tokenData.access_token;
+    return next();
   }
   
-  if (!tokenData || !tokenData.access_token) {
-    console.log('No valid token found');
-    return res.status(401).json({ 
-      error: 'Not authenticated',
-      auth_required: true,
-      auth_url: `${BASE_URL}/auth`
+  // No valid token found
+  return res.status(401).json({ error: 'Authentication required' });
+};
+
+// Middleware to make requests to WHOOP API
+const fetchWhoopData = async (req, res, next) => {
+  try {
+    // Security: Don't log access tokens
+    
+    // ... existing code ...
+    
+    const response = await axios.get(req.whoopApiUrl, {
+      headers: {
+        'Authorization': `Bearer ${req.accessToken}`
+      }
     });
+    
+    // Log only status code, not the full response data
+    console.log('WHOOP API response status:', response.status);
+    
+    // Security: Don't log full API response with potentially sensitive data
+    
+    req.whoopData = response.data;
+    next();
+  } catch (error) {
+    // ... existing code ...
   }
-  
-  // Add access token to request for the route handlers
-  req.accessToken = tokenData.access_token;
-  console.log('Using access token:', req.accessToken.substring(0, 10) + '...');
-  next();
 };
 
 // API routes
-router.get('/recovery', requireAuth, async (req, res) => {
+router.get('/recovery', getToken, async (req, res) => {
   try {
     console.log('Making WHOOP API request with token:', req.accessToken.substring(0, 10) + '...');
     // Get the most recent recovery using the correct endpoint
@@ -100,7 +121,7 @@ router.get('/recovery', requireAuth, async (req, res) => {
   }
 });
 
-router.get('/sleep', requireAuth, async (req, res) => {
+router.get('/sleep', getToken, async (req, res) => {
   try {
     console.log('Making WHOOP API request for sleep data');
     // Get the most recent sleep data using the v1 API
@@ -167,7 +188,7 @@ router.get('/sleep', requireAuth, async (req, res) => {
   }
 });
 
-router.get('/profile', requireAuth, async (req, res) => {
+router.get('/profile', getToken, async (req, res) => {
   try {
     console.log('Making WHOOP API request for profile data');
     // Get user profile information using the v1 API
@@ -211,7 +232,7 @@ router.get('/profile', requireAuth, async (req, res) => {
 });
 
 // Get historical recovery data (with customizable time period)
-router.get('/recovery/history', requireAuth, async (req, res) => {
+router.get('/recovery/history', getToken, async (req, res) => {
   try {
     console.log('Making WHOOP API request for historical recovery data');
     
@@ -439,7 +460,7 @@ router.get('/recovery/history', requireAuth, async (req, res) => {
 });
 
 // Get historical sleep data (with customizable time period)
-router.get('/sleep/history', requireAuth, async (req, res) => {
+router.get('/sleep/history', getToken, async (req, res) => {
   try {
     console.log('Making WHOOP API request for historical sleep data');
     
@@ -561,7 +582,7 @@ router.get('/sleep/history', requireAuth, async (req, res) => {
 });
 
 // Get historical workout data (with customizable time period)
-router.get('/workout/history', requireAuth, async (req, res) => {
+router.get('/workout/history', getToken, async (req, res) => {
   try {
     console.log('Making WHOOP API request for historical workout data');
     
@@ -685,7 +706,7 @@ router.get('/workout/history', requireAuth, async (req, res) => {
 });
 
 // Add Body Measurement Endpoint
-router.get('/body_measurement', requireAuth, async (req, res) => {
+router.get('/body_measurement', getToken, async (req, res) => {
   try {
     console.log('Making WHOOP API request for body measurement data');
     const response = await axios.get('https://api.prod.whoop.com/developer/v1/user/measurement/body', {

@@ -301,34 +301,29 @@ router.get('/callback', async (req, res) => {
   }
 });
 
-// Helper function to get token data by token ID
+// Helper functions for token management
 const getTokenById = (tokenId) => {
-  console.log('Getting token by ID:', tokenId);
-  console.log('Current token store:', Object.keys(tokenStore));
-  const data = tokenStore[tokenId];
-  if (!data || data.expires < Date.now()) {
-    console.log('Token not found or expired');
-    return null;
-  }
-  console.log('Found token data:', data.token ? 'Token exists' : 'No token');
-  return data.token;
-};
-
-// Helper function to get a user's WHOOP token from session
-const getWhoopToken = (req) => {
-  if (!req.session || !req.session.whoopToken) {
-    console.log('No session or token in session');
+  // Security: Don't log token IDs
+  
+  if (!tokenStore[tokenId] || tokenStore[tokenId].expires < Date.now()) {
+    // Security: Don't log token store details
     return null;
   }
   
-  try {
-    const token = decrypt(req.session.whoopToken);
-    console.log('Decrypted token from session:', token ? 'Token exists' : 'No token');
-    return token;
-  } catch (error) {
-    console.error('Error decrypting token:', error);
+  const data = tokenStore[tokenId];
+  // Security: Don't log token details
+  return data;
+};
+
+const getWhoopToken = (req) => {
+  if (!req.session || !req.session.whoopToken) {
+    // Security: Don't log session details
     return null;
   }
+  
+  const token = decrypt(req.session.whoopToken);
+  // Security: Don't log token details
+  return token;
 };
 
 // Export the helper functions
