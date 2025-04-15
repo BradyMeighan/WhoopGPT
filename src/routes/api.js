@@ -64,14 +64,17 @@ router.get('/recovery', requireAuth, async (req, res) => {
       return res.status(404).json({ error: 'No recovery data found' });
     }
     
-    // Format and return the data
+    // Get the score object
+    const score = latestRecovery.score;
+    
+    // Format and return the data according to our OpenAPI schema
     res.json({
-      date: latestRecovery.date,
-      recovery_score: latestRecovery.recovery_score,
-      hrv: latestRecovery.hrv,
-      rhr: latestRecovery.resting_heart_rate,
-      sleep_quality: latestRecovery.sleep_quality_score,
-      user_status: latestRecovery.user_status
+      date: latestRecovery.created_at,
+      recovery_score: score?.score || null,
+      hrv: score?.hrv || null,
+      rhr: score?.resting_heart_rate || null,
+      sleep_quality: score?.sleep_quality_score || null,
+      user_status: score?.user_status || null
     });
   } catch (error) {
     console.error('Error fetching recovery data:', error.response?.data || error.message);
