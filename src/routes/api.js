@@ -55,7 +55,8 @@ router.get('/recovery', requireAuth, async (req, res) => {
     });
     
     console.log('WHOOP API response status:', response.status);
-    console.log('WHOOP API response data:', response.data);
+    // Print full object with depth to see nested objects
+    console.log('WHOOP API response data:', JSON.stringify(response.data, null, 2));
     
     // Extract the latest recovery data
     const latestRecovery = response.data.records?.[0];
@@ -64,17 +65,18 @@ router.get('/recovery', requireAuth, async (req, res) => {
       return res.status(404).json({ error: 'No recovery data found' });
     }
     
-    // Get the score object
+    // Get the score object and log it to verify structure
     const score = latestRecovery.score;
+    console.log('Recovery score object:', JSON.stringify(score, null, 2));
     
     // Format and return the data according to our OpenAPI schema
     res.json({
       date: latestRecovery.created_at,
-      recovery_score: score?.score || null,
-      hrv: score?.hrv || null,
+      recovery_score: score?.recovery_score || null,
+      hrv: score?.hrv_rmssd_milli || null,
       rhr: score?.resting_heart_rate || null,
-      sleep_quality: score?.sleep_quality_score || null,
-      user_status: score?.user_status || null
+      sleep_quality: score?.sleep_performance_percentage || null,
+      user_status: score?.user_calibrating ? 'Calibrating' : 'Normal'
     });
   } catch (error) {
     console.error('Error fetching recovery data:', error.response?.data || error.message);
@@ -100,33 +102,57 @@ router.get('/recovery', requireAuth, async (req, res) => {
 
 router.get('/sleep', requireAuth, async (req, res) => {
   try {
-    // Get the most recent sleep data - UPDATED DOMAIN
-    const response = await axios.get('https://api.prod.whoop.com/v2/sleep', {
+    console.log('Making WHOOP API request for sleep data');
+    // Get the most recent sleep data using the v1 API
+    const response = await axios.get('https://api.prod.whoop.com/developer/v1/activity/sleep', {
       headers: {
         'Authorization': `Bearer ${req.accessToken}`
+      },
+      params: {
+        limit: 1, // Get only the most recent sleep
+        start: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString() // Last 24 hours
       }
     });
     
+    console.log('WHOOP API sleep response status:', response.status);
+    console.log('WHOOP API sleep response data:', JSON.stringify(response.data, null, 2));
+    
     // Extract the latest sleep data
-    const latestSleep = response.data.data?.[0];
+    const latestSleep = response.data.records?.[0];
     
     if (!latestSleep) {
       return res.status(404).json({ error: 'No sleep data found' });
     }
     
-    // Format and return the data
+    // Get the score object and log it to verify structure
+    const score = latestSleep.score;
+    console.log('Sleep score object:', JSON.stringify(score, null, 2));
+    
+    // Format and return the data according to our OpenAPI schema
     res.json({
-      date: latestSleep.date,
-      score: latestSleep.score,
-      total_duration_minutes: Math.floor(latestSleep.total_duration / 60),
-      efficiency: latestSleep.efficiency,
-      disturbances: latestSleep.disturbances,
-      deep_sleep_minutes: Math.floor(latestSleep.deep_sleep_duration / 60),
-      rem_sleep_minutes: Math.floor(latestSleep.rem_sleep_duration / 60),
-      light_sleep_minutes: Math.floor(latestSleep.light_sleep_duration / 60)
+      date: latestSleep.start,
+      score: score?.sleep_performance_percentage || null,
+      total_duration_minutes: Math.floor((new Date(latestSleep.end) - new Date(latestSleep.start)) / 60000),
+      efficiency: score?.sleep_efficiency_percentage || null,
+      disturbances: score?.disturbances_count || 0,
+      deep_sleep_minutes: score?.stage_summary?.deep_sleep_duration_seconds 
+                          ? Math.floor(score.stage_summary.deep_sleep_duration_seconds / 60)
+                          : null,
+      rem_sleep_minutes: score?.stage_summary?.rem_sleep_duration_seconds
+                        ? Math.floor(score.stage_summary.rem_sleep_duration_seconds / 60)
+                        : null,
+      light_sleep_minutes: score?.stage_summary?.light_sleep_duration_seconds
+                          ? Math.floor(score.stage_summary.light_sleep_duration_seconds / 60)
+                          : null
     });
   } catch (error) {
     console.error('Error fetching sleep data:', error.response?.data || error.message);
+    console.error('Error details:', {
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      message: error.message
+    });
     
     // Check if token expired or other auth error
     if (error.response?.status === 401) {
@@ -143,12 +169,16 @@ router.get('/sleep', requireAuth, async (req, res) => {
 
 router.get('/profile', requireAuth, async (req, res) => {
   try {
-    // Get user profile information - UPDATED DOMAIN
-    const response = await axios.get('https://api.prod.whoop.com/v2/user/profile', {
+    console.log('Making WHOOP API request for profile data');
+    // Get user profile information using the v1 API
+    const response = await axios.get('https://api.prod.whoop.com/developer/v1/user/profile/basic', {
       headers: {
         'Authorization': `Bearer ${req.accessToken}`
       }
     });
+    
+    console.log('WHOOP API profile response status:', response.status);
+    console.log('WHOOP API profile response data:', JSON.stringify(response.data, null, 2));
     
     const profile = response.data;
     
@@ -160,6 +190,12 @@ router.get('/profile', requireAuth, async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching profile data:', error.response?.data || error.message);
+    console.error('Error details:', {
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      message: error.message
+    });
     
     // Check if token expired or other auth error
     if (error.response?.status === 401) {
