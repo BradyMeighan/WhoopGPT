@@ -24,8 +24,8 @@ const requireAuth = (req, res, next) => {
 // API routes
 router.get('/recovery', requireAuth, async (req, res) => {
   try {
-    // Get the most recent recovery
-    const response = await axios.get('https://api.whoop.com/v2/recovery', {
+    // Get the most recent recovery - UPDATED DOMAIN
+    const response = await axios.get('https://api.prod.whoop.com/v2/recovery', {
       headers: {
         'Authorization': `Bearer ${req.accessToken}`
       }
@@ -65,8 +65,8 @@ router.get('/recovery', requireAuth, async (req, res) => {
 
 router.get('/sleep', requireAuth, async (req, res) => {
   try {
-    // Get the most recent sleep data
-    const response = await axios.get('https://api.whoop.com/v2/sleep', {
+    // Get the most recent sleep data - UPDATED DOMAIN
+    const response = await axios.get('https://api.prod.whoop.com/v2/sleep', {
       headers: {
         'Authorization': `Bearer ${req.accessToken}`
       }
@@ -108,8 +108,8 @@ router.get('/sleep', requireAuth, async (req, res) => {
 
 router.get('/profile', requireAuth, async (req, res) => {
   try {
-    // Get user profile information
-    const response = await axios.get('https://api.whoop.com/v2/user/profile', {
+    // Get user profile information - UPDATED DOMAIN
+    const response = await axios.get('https://api.prod.whoop.com/v2/user/profile', {
       headers: {
         'Authorization': `Bearer ${req.accessToken}`
       }

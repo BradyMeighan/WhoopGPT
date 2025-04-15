@@ -17,13 +17,13 @@ router.get('/auth', (req, res) => {
   // Store the state in the session to verify later
   req.session.oauthState = state;
   
-  // Build the WHOOP authorization URL
-  const authUrl = new URL('https://api.whoop.com/oauth/oauth2/auth');
+  // Build the WHOOP authorization URL - UPDATED DOMAIN
+  const authUrl = new URL('https://api.prod.whoop.com/oauth/oauth2/auth');
   authUrl.searchParams.append('client_id', process.env.WHOOP_CLIENT_ID);
   authUrl.searchParams.append('redirect_uri', process.env.WHOOP_REDIRECT_URI);
   authUrl.searchParams.append('response_type', 'code');
   authUrl.searchParams.append('state', state);
-  authUrl.searchParams.append('scope', 'read:recovery read:sleep read:profile read:workout');
+  authUrl.searchParams.append('scope', 'read:recovery read:sleep read:profile read:workout read:cycles read:body_measurement');
   
   res.redirect(authUrl.toString());
 });
@@ -45,8 +45,8 @@ router.get('/callback', async (req, res) => {
   }
   
   try {
-    // Exchange code for token
-    const tokenResponse = await axios.post('https://api.whoop.com/oauth/oauth2/token', {
+    // Exchange code for token - UPDATED DOMAIN
+    const tokenResponse = await axios.post('https://api.prod.whoop.com/oauth/oauth2/token', {
       client_id: process.env.WHOOP_CLIENT_ID,
       client_secret: process.env.WHOOP_CLIENT_SECRET,
       grant_type: 'authorization_code',
@@ -102,7 +102,8 @@ router.post('/refresh', async (req, res) => {
       });
     }
     
-    const response = await axios.post('https://api.whoop.com/oauth/oauth2/token', {
+    // UPDATED DOMAIN
+    const response = await axios.post('https://api.prod.whoop.com/oauth/oauth2/token', {
       client_id: process.env.WHOOP_CLIENT_ID,
       client_secret: process.env.WHOOP_CLIENT_SECRET,
       grant_type: 'refresh_token',
