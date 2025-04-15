@@ -12,15 +12,20 @@ const requireAuth = (req, res, next) => {
   
   // First, try to get token from query parameter
   if (req.query.token_id) {
+    console.log('Looking up token by ID:', req.query.token_id);
     tokenData = getTokenById(req.query.token_id);
+    console.log('Token data from ID:', tokenData);
   }
   
   // If not found, try session
   if (!tokenData) {
+    console.log('No token found by ID, checking session');
     tokenData = getWhoopToken(req);
+    console.log('Token data from session:', tokenData);
   }
   
   if (!tokenData || !tokenData.access_token) {
+    console.log('No valid token found');
     return res.status(401).json({ 
       error: 'Not authenticated',
       auth_required: true,
@@ -30,18 +35,23 @@ const requireAuth = (req, res, next) => {
   
   // Add access token to request for the route handlers
   req.accessToken = tokenData.access_token;
+  console.log('Using access token:', req.accessToken.substring(0, 10) + '...');
   next();
 };
 
 // API routes
 router.get('/recovery', requireAuth, async (req, res) => {
   try {
+    console.log('Making WHOOP API request with token:', req.accessToken.substring(0, 10) + '...');
     // Get the most recent recovery - UPDATED DOMAIN
     const response = await axios.get('https://api.prod.whoop.com/v2/recovery', {
       headers: {
         'Authorization': `Bearer ${req.accessToken}`
       }
     });
+    
+    console.log('WHOOP API response status:', response.status);
+    console.log('WHOOP API response data:', response.data);
     
     // Extract the latest recovery data
     const latestRecovery = response.data.data?.[0];
@@ -61,6 +71,12 @@ router.get('/recovery', requireAuth, async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching recovery data:', error.response?.data || error.message);
+    console.error('Error details:', {
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      message: error.message
+    });
     
     // Check if token expired or other auth error
     if (error.response?.status === 401) {

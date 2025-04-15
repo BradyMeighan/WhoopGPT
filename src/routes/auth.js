@@ -125,21 +125,28 @@ router.get('/callback', async (req, res) => {
 
 // Helper function to get token data by token ID
 const getTokenById = (tokenId) => {
+  console.log('Getting token by ID:', tokenId);
+  console.log('Current token store:', Object.keys(tokenStore));
   const data = tokenStore[tokenId];
   if (!data || data.expires < Date.now()) {
+    console.log('Token not found or expired');
     return null;
   }
+  console.log('Found token data:', data.token ? 'Token exists' : 'No token');
   return data.token;
 };
 
 // Helper function to get a user's WHOOP token from session
 const getWhoopToken = (req) => {
   if (!req.session || !req.session.whoopToken) {
+    console.log('No session or token in session');
     return null;
   }
   
   try {
-    return decrypt(req.session.whoopToken);
+    const token = decrypt(req.session.whoopToken);
+    console.log('Decrypted token from session:', token ? 'Token exists' : 'No token');
+    return token;
   } catch (error) {
     console.error('Error decrypting token:', error);
     return null;
