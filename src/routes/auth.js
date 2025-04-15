@@ -110,7 +110,82 @@ router.get('/callback', async (req, res) => {
   }
 });
 
-// Rest of the file remains the same...
+// Endpoint to refresh a token
+router.post('/refresh', async (req, res) => {
+  // Check if user has a session with a token
+  if (!req.session.whoopToken) {
+    return res.status(401).json({ 
+      error: 'No active session',
+      auth_required: true,
+      auth_url: '/auth'
+    });
+  }
+  
+  try {
+    // Decrypt the token data from the session
+    const tokenData = decrypt(req.session.whoopToken);
+    
+    if (!tokenData || !tokenData.refresh_token) {
+      return res.status(401).json({ 
+        error: 'Invalid token',
+        auth_required: true,
+        auth_url: '/auth'
+      });
+    }
+    
+    const response = await axios.post('https://api.prod.whoop.com/oauth/oauth2/token', {
+      client_id: process.env.WHOOP_CLIENT_ID,
+      client_secret: process.env.WHOOP_CLIENT_SECRET,
+      grant_type: 'refresh_token',
+      refresh_token: tokenData.refresh_token
+    });
+    
+    const newTokenData = response.data;
+    
+    // Update the encrypted token in the session
+    req.session.whoopToken = encrypt(newTokenData);
+    
+    // Save the session explicitly
+    req.session.save((err) => {
+      if (err) {
+        console.error('Error saving session:', err);
+        return res.status(500).json({ error: 'Failed to save token data' });
+      }
+      
+      res.json({ success: true });
+    });
+  } catch (error) {
+    console.error('Error refreshing token:', error.response?.data || error.message);
+    res.status(500).json({ error: 'Failed to refresh token' });
+  }
+});
+
+// Helper function to get a user's WHOOP token from session
+const getWhoopToken = (req) => {
+  if (!req.session || !req.session.whoopToken) {
+    return null;
+  }
+  
+  try {
+    return decrypt(req.session.whoopToken);
+  } catch (error) {
+    console.error('Error decrypting token:', error);
+    return null;
+  }
+};
+
+// Logout endpoint
+router.get('/logout', (req, res) => {
+  // Destroy the session
+  req.session.destroy(err => {
+    if (err) {
+      console.error('Error destroying session:', err);
+      return res.status(500).send('Error logging out');
+    }
+    
+    res.send('Logged out successfully');
+  });
+});
 
 module.exports = router;
 module.exports.getWhoopToken = getWhoopToken;
