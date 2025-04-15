@@ -4,6 +4,20 @@ const crypto = require('crypto');
 const { encrypt, decrypt } = require('../utils/crypto');
 const router = express.Router();
 
+// A simple in-memory store for OAuth states
+// This avoids relying on session storage which can be unreliable in stateless environments
+const stateStore = {};
+
+// Clean up old states occasionally
+setInterval(() => {
+  const now = Date.now();
+  Object.keys(stateStore).forEach(state => {
+    if (stateStore[state].expires < now) {
+      delete stateStore[state];
+    }
+  });
+}, 15 * 60 * 1000); // Clean every 15 minutes
+
 // Helper function to generate a random state 
 const generateState = () => {
   return crypto.randomBytes(16).toString('hex');
@@ -14,8 +28,12 @@ router.get('/auth', (req, res) => {
   // Generate a random state to prevent CSRF attacks
   const state = generateState();
   
-  // Store the state in the session to verify later
-  req.session.oauthState = state;
+  // Store the state in our memory store with a 10-minute expiration
+  stateStore[state] = { 
+    expires: Date.now() + (10 * 60 * 1000) // 10 minutes
+  };
+  
+  console.log('Generated state:', state);
   
   // Build the WHOOP authorization URL
   const authUrl = new URL('https://api.prod.whoop.com/oauth/oauth2/auth');
@@ -33,19 +51,15 @@ router.get('/callback', async (req, res) => {
   const { code, state } = req.query;
   
   console.log('Received callback with state:', state);
-  console.log('Session state:', req.session.oauthState);
+  console.log('Known states:', Object.keys(stateStore));
   
   // Verify state parameter to prevent CSRF attacks
-  if (!state || state !== req.session.oauthState) {
-    console.error('State validation failed:', { 
-      receivedState: state, 
-      sessionState: req.session.oauthState 
-    });
-    return res.status(403).send('State validation failed. Possible CSRF attack.');
+  if (!state || !stateStore[state]) {
+    return res.status(403).send('State validation failed. Please try the authorization flow again by visiting /auth');
   }
   
-  // Clean up the state from session
-  delete req.session.oauthState;
+  // Clean up the used state
+  delete stateStore[state];
   
   if (!code) {
     return res.status(400).send('Authorization code is missing');
@@ -54,7 +68,7 @@ router.get('/callback', async (req, res) => {
   try {
     console.log('Exchanging code for token...');
     
-    // IMPORTANT: Try form-urlencoded format which is more common for OAuth
+    // Use form-urlencoded format for the token request
     const tokenResponse = await axios.post(
       'https://api.prod.whoop.com/oauth/oauth2/token', 
       new URLSearchParams({
@@ -71,7 +85,7 @@ router.get('/callback', async (req, res) => {
       }
     );
     
-    console.log('Token response received');
+    console.log('Token received successfully');
     const tokenData = tokenResponse.data;
     
     // Encrypt the token data
@@ -80,16 +94,24 @@ router.get('/callback', async (req, res) => {
     // Store the encrypted token in the user's session
     req.session.whoopToken = encryptedData;
     
-    // Redirect to a success page
-    res.send(`
-      <html>
-        <body>
-          <h1>Successfully connected to WHOOP!</h1>
-          <p>You can now close this window and return to the GPT to access your WHOOP data.</p>
-          <p>Your session has been securely established - no need to remember any IDs or credentials.</p>
-        </body>
-      </html>
-    `);
+    // Save the session explicitly
+    req.session.save((err) => {
+      if (err) {
+        console.error('Error saving session:', err);
+      }
+      
+      // Continue regardless of session save error
+      // Redirect to a success page
+      res.send(`
+        <html>
+          <body>
+            <h1>Successfully connected to WHOOP!</h1>
+            <p>You can now close this window and return to the GPT to access your WHOOP data.</p>
+            <p>Your session has been securely established - no need to remember any IDs or credentials.</p>
+          </body>
+        </html>
+      `);
+    });
     
   } catch (error) {
     console.error('Error exchanging code for token:', {
@@ -107,56 +129,6 @@ router.get('/callback', async (req, res) => {
     }
     
     res.status(500).send(errorMessage);
-  }
-});
-
-// Endpoint to refresh a token
-router.post('/refresh', async (req, res) => {
-  // Check if user has a session with a token
-  if (!req.session.whoopToken) {
-    return res.status(401).json({ 
-      error: 'No active session',
-      auth_required: true,
-      auth_url: '/auth'
-    });
-  }
-  
-  try {
-    // Decrypt the token data from the session
-    const tokenData = decrypt(req.session.whoopToken);
-    
-    if (!tokenData || !tokenData.refresh_token) {
-      return res.status(401).json({ 
-        error: 'Invalid token',
-        auth_required: true,
-        auth_url: '/auth'
-      });
-    }
-    
-    const response = await axios.post('https://api.prod.whoop.com/oauth/oauth2/token', {
-      client_id: process.env.WHOOP_CLIENT_ID,
-      client_secret: process.env.WHOOP_CLIENT_SECRET,
-      grant_type: 'refresh_token',
-      refresh_token: tokenData.refresh_token
-    });
-    
-    const newTokenData = response.data;
-    
-    // Update the encrypted token in the session
-    req.session.whoopToken = encrypt(newTokenData);
-    
-    // Save the session explicitly
-    req.session.save((err) => {
-      if (err) {
-        console.error('Error saving session:', err);
-        return res.status(500).json({ error: 'Failed to save token data' });
-      }
-      
-      res.json({ success: true });
-    });
-  } catch (error) {
-    console.error('Error refreshing token:', error.response?.data || error.message);
-    res.status(500).json({ error: 'Failed to refresh token' });
   }
 });
 
