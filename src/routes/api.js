@@ -43,10 +43,14 @@ const requireAuth = (req, res, next) => {
 router.get('/recovery', requireAuth, async (req, res) => {
   try {
     console.log('Making WHOOP API request with token:', req.accessToken.substring(0, 10) + '...');
-    // Get the most recent recovery - UPDATED DOMAIN
-    const response = await axios.get('https://api.prod.whoop.com/v2/recovery', {
+    // Get the most recent recovery using the correct endpoint
+    const response = await axios.get('https://api.prod.whoop.com/developer/v1/recovery', {
       headers: {
         'Authorization': `Bearer ${req.accessToken}`
+      },
+      params: {
+        limit: 1, // Get only the most recent recovery
+        start: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString() // Last 24 hours
       }
     });
     
@@ -54,7 +58,7 @@ router.get('/recovery', requireAuth, async (req, res) => {
     console.log('WHOOP API response data:', response.data);
     
     // Extract the latest recovery data
-    const latestRecovery = response.data.data?.[0];
+    const latestRecovery = response.data.records?.[0];
     
     if (!latestRecovery) {
       return res.status(404).json({ error: 'No recovery data found' });
