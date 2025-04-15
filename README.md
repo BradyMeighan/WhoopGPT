@@ -1,15 +1,15 @@
-# WhooGPT
+# WhoopGPT
 
 A smart AI assistant that analyzes your WHOOP fitness data through ChatGPT.
 
 ## Overview
 
-WhooGPT combines the power of OpenAI's GPT models with your WHOOP fitness data to provide personalized insights, recommendations, and answers about your health and fitness. It allows you to have natural conversations about your fitness data, including recovery, sleep, workouts, and more.
+WhoopGPT combines the power of OpenAI's GPT models with your WHOOP fitness data to provide personalized insights, recommendations, and answers about your health and fitness. It allows you to have natural conversations about your fitness data, including recovery, sleep, workouts, and more.
 
 ## How It Works
 
-1. **Authentication**: WhooGPT securely connects to your WHOOP account using OAuth.
-2. **Data Access**: Once connected, WhooGPT can access your fitness data directly from WHOOP's API.
+1. **Authentication**: WhoopGPT securely connects to your WHOOP account using OAuth.
+2. **Data Access**: Once connected, WhoopGPT can access your fitness data directly from WHOOP's API.
 3. **AI Analysis**: We integrate this data with ChatGPT, allowing you to ask questions and get personalized insights.
 4. **Natural Conversation**: Ask anything about your WHOOP data in natural language: "How was my sleep last night?", "What trends do you see in my recovery scores?", etc.
 
@@ -38,7 +38,7 @@ WhooGPT combines the power of OpenAI's GPT models with your WHOOP fitness data t
 
 ## Technical Implementation
 
-WhooGPT consists of:
+WhoopGPT consists of:
 
 1. **Backend Server**: Node.js Express server that handles WHOOP API integration and authentication
 2. **ChatGPT Integration**: Custom GPT with specialized knowledge about fitness metrics and WHOOP data interpretation
@@ -46,8 +46,8 @@ WhooGPT consists of:
 
 ## Feedback & Support
 
-We're constantly improving WhooGPT based on user feedback. If you have suggestions, questions, or encounter any issues, please reach out to us.
+We're constantly improving WhoopGPT based on user feedback. If you have suggestions, questions, or encounter any issues, please reach out to us.
 
 ---
 
-*WhooGPT is not affiliated with or endorsed by WHOOP, Inc. WHOOP is a registered trademark of WHOOP, Inc.* 
+*WhoopGPT is not affiliated with or endorsed by WHOOP, Inc. WHOOP is a registered trademark of WHOOP, Inc.* 
