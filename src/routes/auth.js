@@ -6,6 +6,7 @@ const router = express.Router();
 
 // Simple in-memory token store (would use a database in production)
 const tokenStore = {};
+const stateStore = {};
 
 // Clean up expired tokens periodically
 setInterval(() => {
