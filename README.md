@@ -26,7 +26,7 @@ WhoopGPT combines the power of OpenAI's GPT models with your WHOOP fitness data 
 - All WHOOP authentication tokens are stored securely in memory
 - We use encryption for sensitive data
 - We do not store your fitness data; it's accessed directly from WHOOP when needed
-- For more details, please see our [Privacy Policy](/src/public/privacy-policy.html)
+- For more details, please see our [Privacy Policy](https://whoopgpt-production.up.railway.app/privacy-policy.html)
 
 ## Example Use Cases
 
