@@ -154,6 +154,108 @@ paths:
                     type: boolean
                   auth_url:
                     type: string
+  /api/recovery/history:
+    get:
+      summary: Get historical WHOOP recovery data for a specified time period
+      operationId: getRecoveryHistory
+      parameters:
+        - name: token_id
+          in: query
+          description: Authentication token ID
+          required: false
+          schema:
+            type: string
+        - name: days
+          in: query
+          description: Number of days to get history for (1 to 180, default 30)
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 180
+            default: 30
+      responses:
+        "200":
+          description: Historical recovery data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  summary:
+                    type: object
+                    description: Summary statistics for the time period
+                    properties:
+                      total_records:
+                        type: integer
+                        description: Total number of records in the time period
+                      days_requested:
+                        type: integer
+                        description: Number of days requested for the query
+                      avg_recovery_score:
+                        type: integer
+                        description: Average recovery score over the time period
+                      avg_hrv:
+                        type: number
+                        description: Average HRV over the time period
+                      avg_rhr:
+                        type: integer
+                        description: Average resting heart rate over the time period
+                      highest_recovery_score:
+                        type: integer
+                        description: Highest recovery score in the time period
+                      lowest_recovery_score:
+                        type: integer
+                        description: Lowest recovery score in the time period
+                      data_by_week:
+                        type: object
+                        description: Data organized by week
+                        additionalProperties:
+                          type: object
+                          properties:
+                            avg_recovery_score:
+                              type: integer
+                              description: Average recovery score for the week
+                            avg_hrv:
+                              type: number
+                              description: Average HRV for the week
+                            avg_rhr:
+                              type: integer
+                              description: Average resting heart rate for the week
+                  records:
+                    type: array
+                    description: All individual recovery records
+                    items:
+                      type: object
+                      properties:
+                        date:
+                          type: string
+                          description: Date of the recovery score
+                        recovery_score:
+                          type: integer
+                          description: Overall recovery score (0-100)
+                        hrv:
+                          type: number
+                          description: Heart Rate Variability in milliseconds
+                        rhr:
+                          type: number
+                          description: Resting Heart Rate in beats per minute
+                        user_status:
+                          type: string
+                          description: Status of the user
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                  auth_required:
+                    type: boolean
+                  auth_url:
+                    type: string
   /auth:
     get:
       summary: Initiate WHOOP OAuth flow

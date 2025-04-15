@@ -210,6 +210,234 @@ router.get('/profile', requireAuth, async (req, res) => {
   }
 });
 
+// Get historical recovery data (with customizable time period)
+router.get('/recovery/history', requireAuth, async (req, res) => {
+  try {
+    console.log('Making WHOOP API request for historical recovery data');
+    
+    // Get the requested number of days from the query parameter (default to 30 days)
+    const days = Math.min(Math.max(parseInt(req.query.days) || 30, 1), 180);
+    console.log(`Fetching recovery history for the past ${days} days`);
+    
+    // Calculate start date based on requested days
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+    
+    // Initialize variables for pagination
+    let allRecords = [];
+    let nextToken = null;
+    let page = 1;
+    let hasMorePages = true;
+    
+    // Calculate max pages based on days (roughly 1 record per day, 25 records per page)
+    const maxPages = Math.min(Math.ceil(days / 25) + 1, 8); // Cap at 8 pages for very long periods
+    
+    // Loop to get all pages of data
+    while (hasMorePages && page <= maxPages) {
+      console.log(`Fetching recovery history page ${page}...`);
+      
+      // Build params object
+      const params = {
+        limit: 25, // Maximum allowed by API
+        start: startDate.toISOString()
+      };
+      
+      // Add nextToken if we have one
+      if (nextToken) {
+        params.nextToken = nextToken;
+      }
+      
+      // Make the API request
+      const response = await axios.get('https://api.prod.whoop.com/developer/v1/recovery', {
+        headers: {
+          'Authorization': `Bearer ${req.accessToken}`
+        },
+        params
+      });
+      
+      // Log response status
+      console.log(`Recovery history page ${page} response status:`, response.status);
+      
+      // Get records from this page
+      const records = response.data.records || [];
+      console.log(`Got ${records.length} records from page ${page}`);
+      
+      // Process records to match our schema
+      const processedRecords = records.map(record => {
+        const score = record.score || {};
+        return {
+          date: record.created_at,
+          recovery_score: score.recovery_score || null,
+          hrv: score.hrv_rmssd_milli || null,
+          rhr: score.resting_heart_rate || null,
+          user_status: score.user_calibrating ? 'Calibrating' : 'Normal'
+        };
+      });
+      
+      // Add to our collection
+      allRecords = [...allRecords, ...processedRecords];
+      
+      // Check if there are more pages
+      nextToken = response.data.next_token;
+      hasMorePages = !!nextToken;
+      
+      // Increment page counter
+      page++;
+    }
+    
+    // Calculate summary statistics
+    const summary = {
+      total_records: allRecords.length,
+      days_requested: days,
+      avg_recovery_score: 0,
+      avg_hrv: 0,
+      avg_rhr: 0,
+      highest_recovery_score: 0,
+      lowest_recovery_score: 100,
+      data_by_week: {},
+    };
+    
+    // Process records for summary
+    let validScoreCount = 0;
+    let validHrvCount = 0;
+    let validRhrCount = 0;
+    
+    allRecords.forEach(record => {
+      // Add to weekly buckets
+      const date = new Date(record.date);
+      const weekNumber = Math.ceil((date.getDate() + new Date(date.getFullYear(), date.getMonth(), 1).getDay()) / 7);
+      const weekKey = `Week ${weekNumber} (${date.getMonth() + 1}/${date.getFullYear()})`;
+      
+      if (!summary.data_by_week[weekKey]) {
+        summary.data_by_week[weekKey] = {
+          records: [],
+          avg_recovery_score: 0,
+          avg_hrv: 0,
+          avg_rhr: 0
+        };
+      }
+      
+      summary.data_by_week[weekKey].records.push(record);
+      
+      // Calculate overall stats
+      if (record.recovery_score !== null) {
+        summary.avg_recovery_score += record.recovery_score;
+        validScoreCount++;
+        
+        if (record.recovery_score > summary.highest_recovery_score) {
+          summary.highest_recovery_score = record.recovery_score;
+        }
+        
+        if (record.recovery_score < summary.lowest_recovery_score) {
+          summary.lowest_recovery_score = record.recovery_score;
+        }
+      }
+      
+      if (record.hrv !== null) {
+        summary.avg_hrv += record.hrv;
+        validHrvCount++;
+      }
+      
+      if (record.rhr !== null) {
+        summary.avg_rhr += record.rhr;
+        validRhrCount++;
+      }
+    });
+    
+    // Calculate averages for overall summary
+    if (validScoreCount > 0) {
+      summary.avg_recovery_score = Math.round(summary.avg_recovery_score / validScoreCount);
+    } else {
+      summary.avg_recovery_score = null;
+    }
+    
+    if (validHrvCount > 0) {
+      summary.avg_hrv = Math.round((summary.avg_hrv / validHrvCount) * 100) / 100;
+    } else {
+      summary.avg_hrv = null;
+    }
+    
+    if (validRhrCount > 0) {
+      summary.avg_rhr = Math.round(summary.avg_rhr / validRhrCount);
+    } else {
+      summary.avg_rhr = null;
+    }
+    
+    // Calculate weekly averages
+    Object.keys(summary.data_by_week).forEach(weekKey => {
+      const weekData = summary.data_by_week[weekKey];
+      let weekScoreCount = 0;
+      let weekHrvCount = 0;
+      let weekRhrCount = 0;
+      
+      weekData.records.forEach(record => {
+        if (record.recovery_score !== null) {
+          weekData.avg_recovery_score += record.recovery_score;
+          weekScoreCount++;
+        }
+        
+        if (record.hrv !== null) {
+          weekData.avg_hrv += record.hrv;
+          weekHrvCount++;
+        }
+        
+        if (record.rhr !== null) {
+          weekData.avg_rhr += record.rhr;
+          weekRhrCount++;
+        }
+      });
+      
+      // Calculate weekly averages
+      if (weekScoreCount > 0) {
+        weekData.avg_recovery_score = Math.round(weekData.avg_recovery_score / weekScoreCount);
+      } else {
+        weekData.avg_recovery_score = null;
+      }
+      
+      if (weekHrvCount > 0) {
+        weekData.avg_hrv = Math.round((weekData.avg_hrv / weekHrvCount) * 100) / 100;
+      } else {
+        weekData.avg_hrv = null;
+      }
+      
+      if (weekRhrCount > 0) {
+        weekData.avg_rhr = Math.round(weekData.avg_rhr / weekRhrCount);
+      } else {
+        weekData.avg_rhr = null;
+      }
+      
+      // Remove raw records to reduce response size
+      delete weekData.records;
+    });
+    
+    // Return results
+    res.json({
+      summary,
+      records: allRecords
+    });
+    
+  } catch (error) {
+    console.error('Error fetching historical recovery data:', error.response?.data || error.message);
+    console.error('Error details:', {
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      message: error.message
+    });
+    
+    // Check if token expired or other auth error
+    if (error.response?.status === 401) {
+      return res.status(401).json({ 
+        error: 'Authentication error',
+        auth_required: true,
+        auth_url: '/auth'
+      });
+    }
+    
+    res.status(500).json({ error: 'Failed to fetch historical recovery data' });
+  }
+});
+
 // Additional endpoints as needed...
 
 module.exports = router;
